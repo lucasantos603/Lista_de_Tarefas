@@ -13,6 +13,8 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   List _listaTarefas = [];
+  Map<String, dynamic> _ultimaTarefaRemovido = Map();
+  TextEditingController _controllerTarefa = TextEditingController();
 
   Future<File> _getFile() async {
     final diretorio = await getApplicationSupportDirectory();
@@ -21,11 +23,6 @@ class _HomeState extends State<Home> {
 
   _salvarArquivo() async {
     var arquivo = await _getFile();
-
-    Map<String, dynamic> tarefa = Map();
-    tarefa["titulo"] = "ir ao mercado";
-    tarefa["realizada"] = false;
-    _listaTarefas.add(tarefa);
 
     String dados = json.encode(_listaTarefas);
     arquivo.writeAsString(dados);
@@ -42,6 +39,21 @@ class _HomeState extends State<Home> {
     }
   }
 
+  _salvarTarefa() async {
+    String textoDigitado = _controllerTarefa.text;
+
+    Map<String, dynamic> tarefa = Map();
+    tarefa["titulo"] = textoDigitado;
+    tarefa["realizada"] = false;
+
+    setState(() {
+      _listaTarefas.add(tarefa);
+    });
+
+    _salvarArquivo();
+    _controllerTarefa.clear();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -53,11 +65,68 @@ class _HomeState extends State<Home> {
     });
   }
 
+  Widget criarItemLista(context, index) {
+    // final item = _listaTarefas[index]["titulo"];
+
+    return Dismissible(
+      key: Key(DateTime.now().millisecondsSinceEpoch.toString()),
+      direction: DismissDirection.endToStart,
+      onDismissed: (direction) {
+        _ultimaTarefaRemovido = _listaTarefas[index];
+        _listaTarefas.removeAt(index);
+        _salvarArquivo();
+
+        final snackBar = SnackBar(
+          content: Text("Tarefa removida"),
+          backgroundColor: Colors.green,
+          action: SnackBarAction(
+            label: "Desfazer",
+            onPressed: () {
+              setState(() {
+                _listaTarefas.insert(index, _ultimaTarefaRemovido);
+              });
+              _salvarArquivo();
+            },
+          ),
+        );
+        Scaffold.of(context).showSnackBar(snackBar);
+
+        // _salvarArquivo();
+      },
+      background: Container(
+        color: Colors.red,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Icon(
+                Icons.delete,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+      child: CheckboxListTile(
+          title: Text(
+            _listaTarefas[index]["titulo"],
+          ),
+          value: _listaTarefas[index]["realizada"],
+          onChanged: (valorAlterado) {
+            setState(() {
+              _listaTarefas[index]["realizada"] = valorAlterado;
+            });
+            _salvarArquivo();
+          }),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // _salvarArquivo();
 
-    print("itens " + _listaTarefas.toString());
+    // print("itens " + );
 
     return Scaffold(
       appBar: AppBar(
@@ -74,6 +143,7 @@ class _HomeState extends State<Home> {
                   title: Text("adicionar tarefa"),
                   content: TextField(
                     decoration: InputDecoration(labelText: "Digite sua tarefa"),
+                    controller: _controllerTarefa,
                     onChanged: (text) {},
                   ),
                   actions: [
@@ -83,6 +153,7 @@ class _HomeState extends State<Home> {
                     FlatButton(
                         onPressed: () {
                           Navigator.pop(context);
+                          _salvarTarefa()();
                         },
                         child: Text("Salvar"))
                   ],
@@ -96,11 +167,7 @@ class _HomeState extends State<Home> {
           Expanded(
               child: ListView.builder(
             itemCount: _listaTarefas.length,
-            itemBuilder: (context, index) {
-              return ListTile(
-                title: Text(_listaTarefas[index]['titulo']),
-              );
-            },
+            itemBuilder: criarItemLista,
           ))
         ],
       ),
